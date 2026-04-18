@@ -3,109 +3,99 @@ import pandas as pd
 import joblib
 import numpy as np
 
-# Page configuration
-st.set_page_config(page_title="P2P Credit Risk Intelligence", layout="wide")
+# Page Setup
+st.set_page_config(page_title="P2P Credit Risk Analytics", layout="wide")
 
-# Custom CSS for a clean financial dashboard look
+# Professional Header
 st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e1e4e8; }
-    </style>
+    <div style="background-color:#0e1117;padding:20px;border-radius:10px;border-bottom: 5px solid #ff4b4b">
+        <h1 style="color:white;text-align:center;">🛡️ P2P Lending Credit Risk Intelligence</h1>
+        <p style="color:#fafafa;text-align:center;">Predictive Analytics for Default Assessment & Loan Scoring</p>
+    </div>
     """, unsafe_allow_html=True)
 
 @st.cache_resource
 def load_model():
-    # Loading the model specified by the user
+    # Loading your specific model file
     return joblib.load('Best_final_model.pkl')
 
-# Attempt to load the model and handle the error if it's just an array
 try:
     model = load_model()
 except Exception as e:
-    st.error(f"Error loading model: {e}")
+    st.error(f"Could not load 'Best_final_model.pkl'. Ensure the file is in the same folder as app.py.")
     st.stop()
 
-# Professional Header
-st.title("🛡️ P2P Lending: Credit Scoring & Default Prediction")
-st.markdown("""
-    ### Machine Learning Risk Analytics
-    Input borrower data below to assess the probability of loan default (**Charged Off**) versus successful repayment (**Fully Paid**). 
-    The model evaluates creditworthiness based on financial history and loan characteristics.
-""")
-st.divider()
+st.write("") # Spacing
 
-# Input UI Sections
-col1, col2 = st.columns(2)
+# Sidebar for Inputs
+st.sidebar.header("📋 Borrower Application Data")
 
-with col1:
-    st.subheader("👤 Borrower Profile")
-    annual_inc = st.number_input("Annual Income ($)", min_value=0, value=55000)
-    emp_length = st.selectbox("Employment Length", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], format_func=lambda x: f"{x}+ years" if x==10 else (f"< 1 year" if x==0 else f"{x} years"))
-    home_ownership = st.selectbox("Home Ownership", ['RENT', 'MORTGAGE', 'OWN', 'OTHER'])
-    dti = st.number_input("Debt-to-Income (DTI) Ratio", min_value=0.0, max_value=100.0, value=15.0)
+def get_user_input():
+    loan_amnt = st.sidebar.number_input("Loan Amount ($)", value=10000)
+    term = st.sidebar.selectbox("Term", [' 36 months', ' 60 months'])
+    int_rate = st.sidebar.number_input("Interest Rate (%)", value=12.0)
+    annual_inc = st.sidebar.number_input("Annual Income ($)", value=50000)
+    emp_length = st.sidebar.selectbox("Employment Length", ['< 1 year', '1 year', '2 years', '3 years', '4 years', '5 years', '6 years', '7 years', '8 years', '9 years', '10+ years'])
+    home_ownership = st.sidebar.selectbox("Home Ownership", ['RENT', 'MORTGAGE', 'OWN', 'OTHER'])
+    verification_status = st.sidebar.selectbox("Verification Status", ['Not Verified', 'Source Verified', 'Verified'])
+    purpose = st.sidebar.selectbox("Purpose", ['debt_consolidation', 'credit_card', 'home_improvement', 'other', 'major_purchase', 'small_business'])
+    
+    # IMPORTANT: Include any other columns you kept in your notebook (e.g., dti, installment)
+    # If you dropped them in the notebook, they must not be here.
+    data = {
+        'loan_amnt': loan_amnt,
+        'term': term,
+        'int_rate': int_rate,
+        'annual_inc': annual_inc,
+        'emp_length': emp_length,
+        'home_ownership': home_ownership,
+        'verification_status': verification_status,
+        'purpose': purpose
+    }
+    return pd.DataFrame(data, index=[0])
 
-with col2:
-    st.subheader("💰 Loan Specifications")
-    loan_amnt = st.number_input("Loan Amount ($)", min_value=500, value=10000)
-    term = st.selectbox("Term (Months)", [36, 60])
-    int_rate = st.number_input("Interest Rate (%)", min_value=0.0, value=12.5)
-    purpose = st.selectbox("Purpose", ['debt_consolidation', 'credit_card', 'home_improvement', 'other', 'major_purchase', 'small_business'])
+input_df = get_user_input()
 
-# Prediction Section
-if st.button("🚀 Analyze Credit Risk", use_container_width=True):
+# Display Input Summary
+st.subheader("Summary of Input Features")
+st.dataframe(input_df)
+
+# Prediction Logic
+if st.button("Analyze Risk Profile"):
     try:
-        # Construct input DataFrame with columns exactly as trained in the notebook
-        # Note: 'installment' and 'grade' were used in the notebook; we estimate installment here
-        # monthly_rate = (int_rate / 100) / 12
-        # installment = (loan_amnt * monthly_rate) / (1 - (1 + monthly_rate)**(-term))
-        
-        input_df = pd.DataFrame({
-            'loan_amnt': [loan_amnt],
-            'term': [term],
-            'int_rate': [int_rate],
-            'annual_inc': [annual_inc],
-            'dti': [dti],
-            'emp_length': [emp_length],
-            'home_ownership': [home_ownership],
-            'verification_status': ['Verified'], # Defaulting for prediction
-            'purpose': [purpose],
-            'grade': ['B'], # Defaulting for prediction as it's a model requirement
-            'installment': [loan_amnt / term] # simplified estimate
-        })
-
-        # Check if the object has the predict method
+        # 1. Check for 'predict' attribute (Fixes the numpy error)
         if not hasattr(model, 'predict'):
-            st.error("❌ **Prediction Error:** The loaded file 'Best_final_model.pkl' is a NumPy array, not a model object. Please re-run your notebook and save the actual model variable (e.g., `joblib.dump(final_pipeline, 'Best_final_model.pkl')`).")
+            st.error("🚨 **Model Object Error:** The file loaded is a list of numbers (array), not the model. Re-save your model in the notebook using `joblib.dump(model_variable, 'Best_final_model.pkl')`.")
         else:
-            # 0 = Fully Paid, 1 = Charged Off
+            # 2. Perform Prediction
             prediction = model.predict(input_df)[0]
-            # Probability of Default (Class 1)
-            prob_default = model.predict_proba(input_df)[0][1] 
+            probability = model.predict_proba(input_df)[0]
             
-            st.divider()
-            st.subheader("📊 Assessment Summary")
-            
-            m_col1, m_col2, m_col3 = st.columns(3)
-            
-            with m_col1:
-                result_text = "CHARGED OFF (Default)" if prediction == 1 else "FULLY PAID"
-                st.metric("Predicted Outcome", result_text)
-                
-            with m_col2:
-                st.metric("Default Probability", f"{prob_default:.2%}")
-                
-            with m_col3:
-                risk_cat = "HIGH RISK" if prob_default > 0.5 else "LOW RISK"
-                risk_icon = "🔴" if prob_default > 0.5 else "🟢"
-                st.metric("Risk Level", f"{risk_icon} {risk_cat}")
+            # Map prediction to user-friendly text
+            # Assuming 0 = Fully Paid, 1 = Charged Off
+            result = "CHARGED OFF (Default)" if prediction == 1 else "FULLY PAID"
+            prob_val = probability[1] if len(probability) > 1 else 0.0
 
-            # Detailed Output
-            if prediction == 1:
-                st.error(f"**Warning:** The model predicts a high risk of default ({prob_default:.1%} probability).")
+            # 3. Output UI
+            st.divider()
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if prediction == 1:
+                    st.error(f"### Predicted Status: {result}")
+                else:
+                    st.success(f"### Predicted Status: {result}")
+            
+            with col2:
+                st.metric("Default Probability", f"{prob_val:.2%}")
+
+            # Visualization
+            st.progress(prob_val)
+            if prob_val > 0.5:
+                st.warning("⚠️ This application shows high indicators of potential default.")
             else:
-                st.success(f"**Confidence:** High likelihood of full repayment (Probability of default: {prob_default:.1%}).")
+                st.info("✅ This application shows strong indicators for full repayment.")
 
     except Exception as e:
-        st.error(f"❌ **System Error:** {e}")
-        st.info("Ensure the input features match the model's training requirements (Columns: loan_amnt, term, int_rate, installment, grade, annual_inc, dti, emp_length, home_ownership, verification_status, purpose).")
+        st.error(f"**Feature Mismatch Error:** {e}")
+        st.info("Check if your notebook used more columns (like 'dti' or 'grade') that are missing here.")
