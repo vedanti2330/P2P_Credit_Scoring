@@ -4,9 +4,9 @@ import joblib
 import numpy as np
 
 # Page configuration
-st.set_page_config(page_title="P2P Credit Risk Intelligence", layout="wide")
+st.set_page_config(page_title="P2P Credit risk Intelligence", layout="wide")
 
-# Header Section
+# Professional Header
 st.markdown("""
     <style>
     .main-header {
@@ -20,23 +20,23 @@ st.markdown("""
     }
     </style>
     <div class="main-header">
-        <h1>🛡️ P2P Lending: Credit Risk Analytics</h1>
-        <p>Predictive Assessment for Fully Paid vs. Charged Off Loans</p>
+        <h1>🛡️ P2P Lending: Advanced Credit Scoring</h1>
+        <p>Predictive Analytics for Default Risk Assessment</p>
     </div>
     """, unsafe_allow_html=True)
 
 @st.cache_resource
 def load_model():
-    # Loading your specific model file
+    # This must be the PIPELINE object saved from your notebook
     return joblib.load('Best_final_model2.pkl')
 
 try:
-    model_obj = load_model()
+    model = load_model()
 except Exception as e:
     st.error(f"Error loading model: {e}")
     st.stop()
 
-# Input UI Layout
+# Input Layout
 col1, col2 = st.columns(2)
 
 with col1:
@@ -62,11 +62,11 @@ st.divider()
 
 if st.button("🚀 Run Credit Risk Analysis", use_container_width=True):
     try:
-        # --- MANUAL DATA CLEANING (Bypasses Imputer Error) ---
-        
-        # 1. Numeric conversions
+        # --- DATA PRE-PROCESSING ---
+        # 1. Convert Term to numeric
         term_numeric = int(term_raw.replace(' months', '').strip())
         
+        # 2. Convert Emp Length to numeric
         if '< 1' in emp_length_raw:
             emp_numeric = 0
         elif '10+' in emp_length_raw:
@@ -74,7 +74,7 @@ if st.button("🚀 Run Credit Risk Analysis", use_container_width=True):
         else:
             emp_numeric = int(''.join(filter(str.isdigit, emp_length_raw)))
 
-        # 2. Constructing the DataFrame with the exact 11 columns
+        # 3. Construct DataFrame with EXACTLY 11 columns in training order
         input_data = pd.DataFrame({
             'loan_amnt': [loan_amnt],
             'term': [term_numeric],
@@ -89,36 +89,30 @@ if st.button("🚀 Run Credit Risk Analysis", use_container_width=True):
             'purpose': [purpose]
         })
 
-        # 3. Filling NaNs manually to prevent the model's SimpleImputer from running
-        input_data = input_data.fillna(0)
+        # Predict using the Pipeline
+        prediction = model.predict(input_data)[0]
+        probability = model.predict_proba(input_data)[0][1]
 
-        # 4. PREDICTION
-        # We use .predict directly on the pipeline. 
-        # If your model is a pipeline, it will handle the One-Hot encoding.
-        prediction = model_obj.predict(input_data)[0]
-        probability = model_obj.predict_proba(input_data)[0][1]
-
-        # --- OUTPUT UI ---
-        st.subheader("📊 Assessment Result")
+        # Results Display
+        st.subheader("📊 Model Assessment")
         res_col1, res_col2, res_col3 = st.columns(3)
         
         with res_col1:
-            status = "CHARGED OFF (Default)" if prediction == 1 else "FULLY PAID"
+            status = "CHARGED OFF" if prediction == 1 else "FULLY PAID"
             st.metric("Predicted Outcome", status)
         
         with res_col2:
-            st.metric("Probability of Default", f"{probability:.2%}")
+            st.metric("Default Probability", f"{probability:.2%}")
         
         with res_col3:
             risk_lvl = "HIGH RISK" if probability > 0.5 else "LOW RISK"
             risk_icon = "🔴" if probability > 0.5 else "🟢"
-            st.metric("Risk Assessment", f"{risk_icon} {risk_lvl}")
+            st.metric("Risk Level", f"{risk_icon} {risk_lvl}")
 
         if prediction == 1:
-            st.error(f"**High Risk Warning:** The model predicts a high likelihood of default ({probability:.1%}).")
+            st.error(f"**High Risk:** Probability of default is {probability:.1%}.")
         else:
-            st.success(f"**Approval Insight:** Profile suggests a high probability of full repayment.")
+            st.success(f"**Low Risk:** Likelihood of full repayment is high.")
 
     except Exception as e:
         st.error(f"❌ **Error:** {e}")
-        st.info("If you see '_fill_dtype', it means the model's internal imputer is still being triggered. Ensure 'input_data' has no empty values.")
